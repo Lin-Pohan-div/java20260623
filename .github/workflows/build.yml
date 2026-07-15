@@ -50,7 +50,8 @@ jobs:
           javac -encoding UTF-8 -d bin @sources.txt
 
       - name: AI code review (NVIDIA Nemotron)
-        if: github.event_name == 'pull_request'
+        # always()：即使前面編譯失敗，仍對 diff 做審查
+        if: always() && github.event_name == 'pull_request'
         continue-on-error: true
         env:
           NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
