@@ -114,7 +114,18 @@ jobs:
           } > review.md
           gh pr comment "$PR_NUMBER" --body-file review.md
 
+      - name: Check for tests
+        id: check_tests
+        run: |
+          if [ -d test ] && find test -name "*.java" | grep -q .; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            echo "沒有測試檔，將略過編譯與執行測試。"
+          fi
+
       - name: Compile tests
+        if: steps.check_tests.outputs.found == 'true'
         run: |
           mkdir -p bin-test
           find test -name "*.java" > tests.txt
@@ -123,6 +134,7 @@ jobs:
             -d bin-test @tests.txt
 
       - name: Run tests
+        if: steps.check_tests.outputs.found == 'true'
         run: |
           java -jar lib/junit-platform-console-standalone.jar \
             execute \
