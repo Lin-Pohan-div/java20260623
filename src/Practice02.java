@@ -13,7 +13,7 @@ public class Practice02 {
         }
         long result = 1L;
         for (int i = 2; i <= n; i++) {
-            result *= 1;
+            result *= i;
         }
         System.out.println(n + "!=" + result);
     }
