@@ -1,0 +1,12 @@
+# 編譯輸出
+bin/
+bin-test/
+
+# CI 下載的相依與暫存清單
+lib/*.jar
+sources.txt
+tests.txt
+
+# AI 審查暫存檔
+pr.diff
+review.md

@@ -6,6 +6,15 @@ on:
   pull_request:
     branches: [ main ]
 
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  JUNIT_VERSION: '1.11.4'
+  # NVIDIA NIM 模型 id，請至 build.nvidia.com 確認正確名稱後調整
+  NEMOTRON_MODEL: 'nvidia/nemotron-3-ultra-550b-a55b'
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -20,11 +29,105 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
 
+      - name: Cache JUnit console launcher
+        uses: actions/cache@v4
+        with:
+          path: lib/junit-platform-console-standalone.jar
+          key: junit-${{ env.JUNIT_VERSION }}
+
+      - name: Download JUnit console launcher
+        run: |
+          mkdir -p lib
+          if [ ! -f lib/junit-platform-console-standalone.jar ]; then
+            curl -sSL -o lib/junit-platform-console-standalone.jar \
+              "https://repo1.maven.org/maven2/org/junit/platform/junit-platform-console-standalone/${JUNIT_VERSION}/junit-platform-console-standalone-${JUNIT_VERSION}.jar"
+          fi
+
       - name: Compile sources
         run: |
           mkdir -p bin
           find src -name "*.java" > sources.txt
           javac -encoding UTF-8 -d bin @sources.txt
+
+      - name: AI code review (NVIDIA Nemotron)
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        env:
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${NVIDIA_API_KEY:-}" ]; then
+            echo "::warning::未設定 NVIDIA_API_KEY secret，略過 AI 程式碼審查。"
+            exit 0
+          fi
+
+          # 取得本次 PR 的程式碼差異
+          gh pr diff "$PR_NUMBER" --patch > pr.diff \
+            || git diff "origin/${BASE_REF}...HEAD" > pr.diff
+          if [ ! -s pr.diff ]; then
+            echo "沒有可審查的差異，略過。"
+            exit 0
+          fi
+
+          # 只擷取前 60000 字，避免超過模型輸入上限
+          DIFF_CONTENT=$(head -c 60000 pr.diff)
+
+          # 用 jq 安全組出 request payload（自動處理跳脫）
+          PAYLOAD=$(jq -n \
+            --arg model "$NEMOTRON_MODEL" \
+            --arg sys "你是一位資深 Java 工程師。請針對以下 PR diff 做程式碼審查，用繁體中文條列指出潛在 bug、邊界情況、風格與可讀性問題並給改進建議；若沒有問題請明確回覆 LGTM。" \
+            --arg diff "$DIFF_CONTENT" \
+            '{
+               model: $model,
+               temperature: 0.2,
+               max_tokens: 1024,
+               messages: [
+                 { role: "system", content: $sys },
+                 { role: "user",   content: ("以下是 PR 的 diff：\n\n" + $diff) }
+               ]
+             }')
+
+          RESPONSE=$(curl -sS https://integrate.api.nvidia.com/v1/chat/completions \
+            -H "Authorization: Bearer $NVIDIA_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD")
+
+          REVIEW=$(echo "$RESPONSE" | jq -r '.choices[0].message.content // empty')
+          if [ -z "$REVIEW" ]; then
+            echo "::warning::NVIDIA API 回應異常，原始內容如下："
+            echo "$RESPONSE"
+            exit 0
+          fi
+
+          # 把審查結果貼回 PR
+          {
+            echo "## 🤖 NVIDIA Nemotron 程式碼審查"
+            echo ""
+            echo "$REVIEW"
+            echo ""
+            echo "<sub>模型：\`${NEMOTRON_MODEL}\`；此審查僅供參考。</sub>"
+          } > review.md
+          gh pr comment "$PR_NUMBER" --body-file review.md
+
+      - name: Compile tests
+        run: |
+          mkdir -p bin-test
+          find test -name "*.java" > tests.txt
+          javac -encoding UTF-8 \
+            -cp "bin:lib/junit-platform-console-standalone.jar" \
+            -d bin-test @tests.txt
+
+      - name: Run tests
+        run: |
+          java -jar lib/junit-platform-console-standalone.jar \
+            execute \
+            -cp "bin:bin-test" \
+            --scan-classpath \
+            --details=tree
 
       - name: Run App
         run: java -cp bin App
