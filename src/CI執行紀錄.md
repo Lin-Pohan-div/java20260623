@@ -8,6 +8,47 @@
 
 ---
 
+## #2 · 2026-07-15 · PR #2（Practice02／03 測試 + AI 審查再驗證）
+
+| 項目 | 內容 |
+|------|------|
+| 事件 | `pull_request` |
+| 分支 | `test/practice02-03-tests` → `main` |
+| PR | [#2 新增 Practice02、Practice03 的 JUnit 測試](https://github.com/Lin-Pohan-div/java20260623/pull/2) |
+| Run | [29406299376](https://github.com/Lin-Pohan-div/java20260623/actions/runs/29406299376)（Java CI #10） |
+| 總結果 | ✅ success（35 秒，全步驟通過） |
+| 模型 | `nvidia/nemotron-3-ultra-550b-a55b` |
+
+**本次變更**
+
+- 將 `Practice02` 的階乘邏輯抽成可測的 `factorial(int n)`（負數丟 `IllegalArgumentException`）。
+- 新增 `Practice02Test`（0!／1!／一般值／20! 不溢位／負數例外，共 5 個）。
+- 新增 `Practice03Test`（數字／字母／中文字／空白／其他，共 5 個）。
+- 本機與 CI 皆 16 個測試全數通過。
+
+**各步驟結果**
+
+| 步驟 | 結果 | 說明 |
+|------|------|------|
+| Checkout / Set up JDK 21 | ✅ success | |
+| Cache / Download JUnit console launcher | ✅ success | |
+| Compile sources | ✅ success | Practice02 重構後正常編譯 |
+| **AI code review (NVIDIA Nemotron)** | ✅ success | 成功於 PR 留言，無 `NVIDIA_API_KEY` warning |
+| Compile tests / Run tests | ✅ success | 16 個測試全過 |
+| Run App | ✅ success | |
+
+**AI 審查留言**（摘要，[原始留言見 PR #2](https://github.com/Lin-Pohan-div/java20260623/pull/2)）
+
+> ## 🤖 NVIDIA Nemotron 程式碼審查
+>
+> Code Review 結果：整體來說這是一個不錯的 PR，將階乘邏輯抽出（`factorial`）使其可測試，測試涵蓋 0!、邊界（20! 不溢位）與負數例外，設計良好。
+>
+> <sub>模型：`nvidia/nemotron-3-ultra-550b-a55b`；此審查僅供參考。</sub>
+
+> 註：與 #1（push 到 main 不觸發 AI 審查）對照，本次為 `pull_request` 事件，AI 審查如預期執行 — 印證審查僅在 PR 觸發之設計。
+
+---
+
 ## #1 · 2026-07-15 · PR #1（AI 審查實測）
 
 | 項目 | 內容 |
